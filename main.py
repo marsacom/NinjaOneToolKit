@@ -111,7 +111,7 @@ def getDevices(token):
             l = l + 1
     else:
         print("\nThere are no devices currently associated with this organization...\n")
-
+        sys.exit()
 
 # Load excel sheet and gather device info
 def getExcelData():
