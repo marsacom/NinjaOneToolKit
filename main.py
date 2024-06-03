@@ -56,8 +56,6 @@ def getToken():
     global api_token
     api_token = token["access_token"]
 
-    #print("API Token: " + token["access_token"] + "\n")
-
 
 # Get organizations assocaited in NinjaOne
 def getOrgs(token):
@@ -82,7 +80,6 @@ def getOrgs(token):
         org_id.append(i["id"])
 
     print('\n')
-
     getDevices(token)
 
 
