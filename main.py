@@ -1,9 +1,11 @@
 #!/user/bin/env python3
 
-# Compare devices in NinjaOne organization to data in XLSX Sheet
-# Call NinjaOne API for organization and device information 
-# Gather values from XLSX Sheet and compare to NinjaOne
-# Update values in XLSX Sheet to reflect devices in/not in NinjaOne
+# NinjaOneToolKit
+# Perform a variety of functions related to devices in NinjaOne/Domain
+# Gather values from XLSX Sheet and compare to NinjaOne/Domain
+# Update values in XLSX Sheet to reflect devices in/not in NinjaOne/Domain
+# List devices in and not in NinjaOne/Domain
+# Add devices into NinjaOne/Domain
 # Brayden Kukla - 2024
 
 
@@ -22,7 +24,7 @@ oauth_url = "https://app.ninjarmm.com/ws/oauth/token"
 api_token = 'token'
 
 
-# Be sure to change the path in .env if running on a different machine
+# Be sure to change the path in .env 
 load_dotenv() 
 path = os.getenv('XL_PATH')
 
@@ -35,7 +37,7 @@ ws = wb['Computers']
  
 def start():
     getToken()
-    getExcelData()
+    # getExcelData()
 
 
 # Call api endpoint for bearer token, currently this is just uses a machine-to-machine application using client credentials
@@ -214,6 +216,7 @@ def compareRes():
         if xl_systemNames[i] not in ad_name:
             print("Device: ", xl_systemNames[i], " has NOT yet joined the Domain...")
             ad_missing.append(xl_systemNames[i])
+            ws['D'+str(xl_rowNum[i])] == 'N'
 
             if xl_systemNames[i] not in ninja_systemNames:
                 print("Device: ", xl_systemNames[i], " has NOT been registered into NinjaOne")
@@ -226,6 +229,7 @@ def compareRes():
 
         else:
             print("Device: ", xl_systemNames[i], " has already joined the Domain...")
+            ws['D'+str(xl_rowNum[i])] == 'Y'
 
             if xl_systemNames[i] not in ninja_systemNames:
                 print("Device: ", xl_systemNames[i], " has NOT been registered into NinjaOne")
@@ -291,7 +295,7 @@ def main():
         cmd = " Add-Computer -DomainName ssis.local -Credential ssis\\administrator -Restart"
         p = subprocess.Popen('powershell -command' + cmd)
         p.communicate()
-    elif choice == 5: # Add computer to NinjaOne (TO BE ADDED)
+    elif choice == 5: # Add computer to NinjaOne
         pass
     else:
         print("\nERROR: Please re-run the script and enter a valid value, 1-5")
