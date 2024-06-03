@@ -37,7 +37,7 @@ ws = wb['Computers']
  
 def start():
     getToken()
-    # getExcelData()
+    getExcelData()
 
 
 # Call api endpoint for bearer token, currently this is just uses a machine-to-machine application using client credentials
