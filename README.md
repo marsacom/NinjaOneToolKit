@@ -1,4 +1,4 @@
-## NinjaOneCompareDevices
+## NinjaOneToolKit
 
 This script uses the NinjaOne API to perform a variety of functions. With this script you can...
 
