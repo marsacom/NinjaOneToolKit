@@ -1,0 +1,10 @@
+# Ignore dot files except .gitignore / .env
+.*
+!.gitignore
+!.env
+
+# Ignore log files
+Logs/
+
+# Ignore any test files
+test*.*
