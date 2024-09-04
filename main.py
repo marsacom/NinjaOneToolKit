@@ -23,8 +23,6 @@ endpoint = "https://app.ninjarmm.com/v2/"
 oauth_url = "https://app.ninjarmm.com/ws/oauth/token"
 api_token = 'token'
 
-pwrshl = 'powershell -command'
-
 
 # Be sure to change the path in .env 
 load_dotenv() 
@@ -39,7 +37,7 @@ ws = wb['Computers']
  
 def start():
     get_token()
-    get_excel_data()
+    get_excel_date()
 
 
 # Call api endpoint for bearer token, currently this is just uses a machine-to-machine application using client credentials
@@ -152,7 +150,7 @@ def check_csv():
             ad_rows.append(row)
 
         # This just deletes the first 2 items in the list to get rid of the bullshit info we dont want
-        for _ in range(2):
+        for i in range(2):
             ad_rows.pop(0)
 
         l = 0
@@ -178,28 +176,107 @@ def check_csv():
 
 
 # Load excel sheet and gather device info
-def get_excel_data():
+def get_excel_date():
     global xl_ids
     global xl_system_names 
-    global xl_rowNum
+    global xl_row_num
     global xl_ninja_statuses
 
     xl_ids = []
     xl_system_names = []
-    xl_rowNum = []
+    xl_row_num = []
     xl_ninja_statuses = []
 
     l = 1
 
     for row in ws.iter_rows(min_row=2, max_row=80, values_only=True):
-        if row[0] != None:
+        if row[0] == None:
+            pass
+        else:
             l = l + 1
             xl_ids.append(row[1])
             xl_system_names.append(row[0])
-            xl_rowNum.append(l)
+            xl_row_num.append(l)
             xl_ninja_statuses.append(row[4])
 
 
+# Compare results of devices in NinjaOne to the Excel File and update values in the "Computers Sheet"
+def compare_res():
+    ninja_missing = []
+    ad_missing = []
+    both = []
+
+    dev_lbl = "Device: "
+    nin_no = " : NinjaOne - NO"
+    nin_yes = " : NinjaOne - YES"
+    dom_yes =  " : Domain - YES"
+    dom_no = " : Domain - NO"
+
+
+    print('-'*60)
+    print("\nComparing results... \n")
+
+    for i in range(len(xl_system_names)):
+        if in_domain(xl_system_names[i]) == False:
+            print(dev_lbl, xl_system_names[i], dom_no)
+            ad_missing.append(xl_system_names[i])
+            ws['D'+str(xl_row_num[i])] == 'N'
+
+            if in_ninja(xl_system_names[i]) == False :
+                print(dev_lbl, xl_system_names[i], nin_no)
+                ninja_missing.append((xl_system_names[i]))
+                ws['E'+str(xl_row_num[i])] = 'N'
+
+            else:
+                print(dev_lbl, xl_system_names[i], nin_yes)
+                ws['E'+str(xl_row_num[i])] = 'Y'
+
+        else:
+            print(dev_lbl, xl_system_names[i], dom_yes)
+            ws['D'+str(xl_row_num[i])] == 'Y'
+
+            if in_ninja(xl_system_names[i]) == False:
+                print(dev_lbl, xl_system_names[i], nin_no)
+                ninja_missing.append(xl_system_names[i])
+                ws['E'+str(xl_row_num[i])] = 'N'
+
+            else:
+                print(dev_lbl, xl_system_names[i], nin_yes)
+                ws['E'+str(xl_row_num[i])] = 'Y'
+        print('-'*60)
+    
+    # Which devices are missing from NinjaOne & Domain
+    for d in range(len(ninja_missing)):
+        if ninja_missing[d] in ad_missing:
+            both.append(ninja_missing[d])
+
+    write_to_file(ninja_missing, ad_missing, both)
+
+    wb.save(path)
+
+
+# Add a computer to the domain remotely
+def add_to_domain():
+    name = input("Please enter the name of the PC you wish to join to the domain... ex. WKSSSISXX-XX : ")
+
+    # Using same creds for local and domain admin as 
+    cmd = " Add-Computer -ComputerName " + str(name) + " -LocalCredential ssis\\administrator -DomainName ssis.local -Credential ssis\\administrator -Restart"
+    p = subprocess.Popen('powershell -command' + cmd)
+    p.communicate()
+
+# Get all computers associated with Active Directory
+def get_ad_computers():
+    cmd = " Get-ADComputer -Filter * -Properties IPv4Address | Export-Csv C:\\Users\\bkukla\\VSCode\\NinjaOneToolKit\\computers.csv"
+    p = subprocess.Popen('powershell -command' + cmd)
+    p.communicate()
+
+# WIP : Add device to NinjaOne Organization
+# def add_to_ninja():
+#     cmd = " "
+#     p = subprocess.Popen('powershell -command' + cmd)
+#     p.communicate
+
+#Comparison functions
 def in_ninja(device):
     if device in ninja_system_names:
         return True
@@ -211,87 +288,12 @@ def in_domain(device):
         return True
     else:
         return False
-       
 
-# Compare results of devices in NinjaOne to the Excel File and update values in the "Computers Sheet"
-def compare_res():
-    ninja_missing = []
-    ad_missing = []
-    both = []
-
-    global dev_lbl
-    dev_lbl = "Device: "
-    dom_yes = " : Domain - YES"
-    dom_no = " : Domain - NO";
-
-    nin_yes = " : NinjaOne - YES"
-    nin_no = " : NinjaOne - NO"
-
-    print('-'*60)
-    print("\nComparing results... \n")
-
-    for i in range(len(xl_system_names)):
-        if in_domain(xl_system_names[i]) == False:
-            print(dev_lbl, xl_system_names[i], dom_no)
-            ad_missing.append(xl_system_names[i])
-            ws['D'+str(xl_rowNum[i])] = 'N'
-
-            if in_ninja(xl_system_names[i]) == False:
-                print(dev_lbl, xl_system_names[i], nin_no)
-                ninja_missing.append((xl_system_names[i]))
-                ws['E'+str(xl_rowNum[i])] = 'N'
-
-            else:
-                print(dev_lbl, xl_system_names[i], nin_yes)
-                ws['E'+str(xl_rowNum[i])] = 'Y'
-
-        else:
-            print(dev_lbl, xl_system_names[i], dom_yes)
-            ws['D'+str(xl_rowNum[i])] = 'Y'
-
-            if in_ninja(xl_system_names[i]) == False:
-                print(dev_lbl, xl_system_names[i], nin_no)
-                ninja_missing.append(xl_system_names[i])
-                ws['E'+str(xl_rowNum[i])] = 'N'
-
-            else:
-                print(dev_lbl, xl_system_names[i], nin_yes)
-                ws['E'+str(xl_rowNum[i])] = 'Y'
-        print('-'*60)
-    
-    # Which devices are missing from NinjaOne & Domain
-    for d in range(len(ninja_missing)):
-        if ninja_missing[d] in ad_missing:
-            both.append(ninja_missing[d])
-
-    write_to_file(ninja_missing, ad_missing, both)
-
-
-# Add a computer to the domain remotely
-def add_to_domain():
-    name = input("Please enter the name of the PC you wish to join to the domain... ex. WKSSSISXX-XX : ")
-
-    # Using same creds for local and domain admin as 
-    cmd = " Add-Computer -ComputerName " + str(name) + " -LocalCredential ssis\\administrator -DomainName ssis.local -Credential ssis\\administrator -Restart"
-    p = subprocess.Popen(pwrshl + cmd)
-    p.communicate()
-
-
-# Get all computers associated with Active Directory
-def get_ad_computers():
-    cmd = " Get-ADComputer -Filter * -Properties IPv4Address | Export-Csv C:\\Users\\bkukla\\VSCode\\NinjaOneToolKit\\computers.csv"
-    p = subprocess.Popen(pwrshl + cmd)
-    p.communicate()
-
-
-# def add_to_ninja():
-#     cmd = " "
-#     p = subprocess.Popen(pwrshl + cmd)
-#     p.communicate
-
-
+# Write results to results.txt file in the specified log path
 def write_to_file(ninja_missing, ad_missing, both):
-    # Write results to results.txt file
+
+    dev_lbl = "Device: "
+
     try:    
         with open(os.getenv('LOG_PATH'), "w") as f:
             f.write("NinjaOne\n" + "------------\n")
@@ -306,15 +308,16 @@ def write_to_file(ninja_missing, ad_missing, both):
             f.write("\nSUCCESS: Script completed at - " + str(datetime.now()))
 
             print('-'*60)
-            print("\nSUCCESS: Results have been saved in " + os.getenv('LOG_PATH') + '...\n')    
+            print("\nSUCCESS: Results have been saved in " + os.getenv('LOG_PATH') + '...\n')   
+
     except FileNotFoundError:
-        print("\nERROR: File not found. Please ensure the path for logs is set correctly in the .env file...\n")
+        print("\nERROR: File not found. Please ensure the path for logs is set correctly in the .env file...\n")  
 
 
 # Main
 def main():
     start()   
-    print("\nStarting NinjaOneToolKit v.1.1...")
+    print("\nStarting NinjaOneToolKit v.1.0...")
     print('-'*60)
     print(" 1: List all devices in NinjaOne\n", "2: List all devices in the Domain\n", "3: List devices missing from NinjaOne and the Domain\n", "4: Add computer to the Domain\n", "5: Add computer to NinjaOne\n")
 
@@ -333,12 +336,9 @@ def main():
     elif choice == 4: # Add computer to the Domain
         add_to_domain()
     elif choice == 5: # Add computer to NinjaOne
-        pass
+        print("\nThis feature is currently being developed and is unavailable...")
     else:
         print("\nERROR: Please re-run the script and enter a valid value, 1-5")
-
-
-# https://app.ninjarmm.com/agent/installer/09e02ed8-75fc-4456-86eb-1c8d14444a63/ssindustrialsurplusmainoffice-5.8.9154-windows-installer.msi
 
 
 if __name__=="__main__":
