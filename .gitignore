@@ -6,5 +6,9 @@
 # Ignore log files
 Logs/
 
+#Ignore any company related files
+Network.xlsx
+computers.csv
+
 # Ignore any test files
 test*.*

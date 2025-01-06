@@ -181,23 +181,26 @@ def get_excel_date():
     global xl_system_names 
     global xl_row_num
     global xl_ninja_statuses
-
+    global xl_domain_statuses
+    #Save info from the xlsx file
     xl_ids = []
     xl_system_names = []
     xl_row_num = []
     xl_ninja_statuses = []
+    xl_domain_statuses = []
 
     l = 1
-
+    #Iterate through the sheet to save values
     for row in ws.iter_rows(min_row=2, max_row=80, values_only=True):
         if row[0] == None:
             pass
         else:
             l = l + 1
-            xl_ids.append(row[1])
+            xl_ids.append(row[2])
             xl_system_names.append(row[0])
             xl_row_num.append(l)
             xl_ninja_statuses.append(row[4])
+            xl_domain_statuses.append(row[3])
 
 
 # Compare results of devices in NinjaOne to the Excel File and update values in the "Computers Sheet"
@@ -220,7 +223,7 @@ def compare_res():
         if in_domain(xl_system_names[i]) == False:
             print(dev_lbl, xl_system_names[i], dom_no)
             ad_missing.append(xl_system_names[i])
-            ws['D'+str(xl_row_num[i])] == 'N'
+            ws['D'+str(xl_row_num[i])] = 'N'
 
             if in_ninja(xl_system_names[i]) == False :
                 print(dev_lbl, xl_system_names[i], nin_no)
@@ -233,7 +236,7 @@ def compare_res():
 
         else:
             print(dev_lbl, xl_system_names[i], dom_yes)
-            ws['D'+str(xl_row_num[i])] == 'Y'
+            ws['D'+str(xl_row_num[i])] = 'Y'
 
             if in_ninja(xl_system_names[i]) == False:
                 print(dev_lbl, xl_system_names[i], nin_no)
@@ -266,7 +269,7 @@ def add_to_domain():
 
 # Get all computers associated with Active Directory
 def get_ad_computers():
-    cmd = " Get-ADComputer -Filter * -Properties IPv4Address | Export-Csv C:\\Users\\bkukla\\VSCode\\NinjaOneToolKit\\computers.csv"
+    cmd = " Get-ADComputer -Filter * -Properties IPv4Address | Export-Csv C:\\Users\\bkukla\\A-VSCode\\NinjaOneToolKit\\computers.csv"
     p = subprocess.Popen('powershell -command' + cmd)
     p.communicate()
 
