@@ -14,8 +14,10 @@ import sys
 import csv
 import warnings
 import requests
+import socket
 import openpyxl as xl
 import subprocess
+from tabulate import tabulate
 from dotenv import load_dotenv
 from datetime import datetime
 
@@ -80,8 +82,63 @@ def get_orgs(token):
         org_id.append(i["id"])
 
     print('\n')
-    get_devices(token)
+    #get_devices(token)
+    get_devices_detailed(token)
 
+#Get detailed information on devices
+def get_devices_detailed(token):
+    data = [] #Array to store values for displaying in tabulate table
+    header = ["System Name", "ID", "Status", "OS", "Brand", "Model", "Serial Number", "Processor"] #Headers for tabulate table columns
+    user_sel = input("Please select an organization... ")
+
+    headers = {
+        "Accept": "application/json",
+        "Authorization": "Bearer " + token,
+    }
+
+    #Using the built in device filter param to only get detailed info for devices in a specific org
+    device_url = endpoint + "devices-detailed/" + "?df=org=" + user_sel
+    devices = requests.get(device_url, headers=headers).json()
+
+    global ninja_ids
+    global ninja_system_names 
+    global ninja_status
+    global ninja_os_names
+    global ninja_system_brands
+    global ninja_system_models
+    global ninja_system_serials
+    global ninja_processors
+
+    ninja_ids = []
+    ninja_system_names = []
+    ninja_status = []
+    ninja_os_names = []
+    ninja_system_brands = []
+    ninja_system_models = []
+    ninja_system_serials = []
+    ninja_processors = []
+
+    print('-'*60)
+    print("\nDevices in NinjaOne...\n")
+    print('-'*60, '\n')
+
+    if len(devices) >= 1:
+        for k in devices:
+            ninja_ids.append(int(k["id"]))
+            ninja_system_names.append(str(k["systemName"]))
+            ninja_status.append(str(k["offline"]))
+            ninja_os_names.append(str(k["os"]["name"]))
+            ninja_system_brands.append(str(k["system"]["manufacturer"]))
+            ninja_system_models.append(str(k["system"]["model"]))
+            ninja_system_serials.append(str(k["system"]["serialNumber"]))
+            ninja_processors.append(str(k["processors"][0]["name"]))
+
+            data.append([str(k["systemName"]), str(k["id"]), "Offline" if str(k["offline"]) == "True" else "Online", str(k["os"]["name"]), str(k["system"]["manufacturer"]), str(k["system"]["model"]), str(k["system"]["serialNumber"]), str(k["processors"][0]["name"])])
+            
+        print(tabulate(data, headers=header, tablefmt='double_grid'))
+    else:
+        print("\nThere are no devices currently associated with this organization...\n")
+        sys.exit()
 
 # Gather devices based on users organization selection
 def get_devices(token):
@@ -131,6 +188,8 @@ def get_devices(token):
 
 # Parse info from computers.csv to be able to compare in a later function
 def check_csv():
+    data = [] #Array to store values for displaying in tabulate table
+    header = ["System Name", "DNS Name", "IP Address"] #Headers for tabulate table columns1
     file = os.getenv('CSV_PATH')
 
     global ad_rows
@@ -153,8 +212,6 @@ def check_csv():
         for i in range(2):
             ad_rows.pop(0)
 
-        l = 0
-
         print('-'*60)
         print("\nDevices in the Domain...\n")
         print('-'*60, '\n')
@@ -162,17 +219,16 @@ def check_csv():
         for row in ad_rows:
             ad_name.append(row[4])
             ad_dns.append(row[1])
-
-            # Some of the IPs are unknown in the domain for some reason, this is just to check if 
-            if row[3] == '':
+            if row[3] == '': # Some of the IPs are unknown in the domain for some reason, this is just to check 
                 ad_ip.append('   UNKNOWN  ')
             else:
                 ad_ip.append(row[3])
+            data.append([row[4], row[1], 'UNKNOWN' if row[3] == '' else row[3]])
 
-            print(f"{'System Name' : <20}{'IP' : ^15}{'DNS Name' : >20}")
-            print(f"{'-'*12 : <20}{'-'*12 : ^15}{'-'*18 : >25}")
-            print(f"{ad_name[l] : <20}{ad_ip[l] : ^2}{ad_dns[l] : >28} \n")
-            l = l + 1
+        print(tabulate(data, headers=header, tablefmt="double_grid"))
+            # print(f"{'System Name' : <20}{'IP' : ^15}{'DNS Name' : >20}")
+            # print(f"{'-'*12 : <20}{'-'*12 : ^15}{'-'*18 : >25}")
+            # print(f"{ad_name[l] : <20}{ad_ip[l] : ^2}{ad_dns[l] : >28} \n")
 
 
 # Load excel sheet and gather device info
@@ -205,49 +261,35 @@ def get_excel_date():
 
 # Compare results of devices in NinjaOne to the Excel File and update values in the "Computers Sheet"
 def compare_res():
+    data = [] #Array to store values for displaying in tabulate table
+    header = ["Device","In Domain?", "In Ninja?"] #Headers for tabulate table columns    
     ninja_missing = []
     ad_missing = []
     both = []
 
-    dev_lbl = "Device: "
-    nin_no = " : NinjaOne - NO"
-    nin_yes = " : NinjaOne - YES"
-    dom_yes =  " : Domain - YES"
-    dom_no = " : Domain - NO"
-
-
     print('-'*60)
-    print("\nComparing results... \n")
+    print("\nDisplaying Devices In The Excel File And Their Statuses In NinjaOne & Domain... \n")
 
     for i in range(len(xl_system_names)):
         if in_domain(xl_system_names[i]) == False:
-            print(dev_lbl, xl_system_names[i], dom_no)
             ad_missing.append(xl_system_names[i])
             ws['D'+str(xl_row_num[i])] = 'N'
-
             if in_ninja(xl_system_names[i]) == False :
-                print(dev_lbl, xl_system_names[i], nin_no)
                 ninja_missing.append((xl_system_names[i]))
                 ws['E'+str(xl_row_num[i])] = 'N'
-
             else:
-                print(dev_lbl, xl_system_names[i], nin_yes)
                 ws['E'+str(xl_row_num[i])] = 'Y'
-
         else:
-            print(dev_lbl, xl_system_names[i], dom_yes)
             ws['D'+str(xl_row_num[i])] = 'Y'
-
             if in_ninja(xl_system_names[i]) == False:
-                print(dev_lbl, xl_system_names[i], nin_no)
                 ninja_missing.append(xl_system_names[i])
                 ws['E'+str(xl_row_num[i])] = 'N'
-
             else:
-                print(dev_lbl, xl_system_names[i], nin_yes)
                 ws['E'+str(xl_row_num[i])] = 'Y'
-        print('-'*60)
+
+        data.append([xl_system_names[i], 'YES' if in_domain(xl_system_names[i]) else 'NO', 'YES' if in_ninja(xl_system_names[i]) else 'NO'])
     
+    print(tabulate(data, headers=header, tablefmt='double_grid'))
     # Which devices are missing from NinjaOne & Domain
     for d in range(len(ninja_missing)):
         if ninja_missing[d] in ad_missing:
@@ -291,6 +333,10 @@ def in_domain(device):
         return True
     else:
         return False
+
+#Get FQDN     
+def get_domain_name():
+    return socket.getfqdn().split('.', 1)[1]
 
 # Write results to results.txt file in the specified log path
 def write_to_file(ninja_missing, ad_missing, both):
