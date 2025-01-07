@@ -23,20 +23,22 @@ from datetime import datetime
 
 endpoint = "https://app.ninjarmm.com/v2/"
 oauth_url = "https://app.ninjarmm.com/ws/oauth/token"
-api_token = 'token'
-
 
 # Be sure to change the path in .env 
 load_dotenv() 
 path = os.getenv('XL_PATH')
+
+# This is the ID of the organization in NinjaOne that your account running the scripts domain  
+domain_org_id = os.getenv('DOMAIN_ORG_ID')
 
 # This is specifically to ignore the random warning that is generated when accessing the worksheet via openpyxl (does not affect the script)
 warnings.simplefilter('ignore')
 
 wb = xl.load_workbook(path)
 ws = wb['Computers']
+user_sel = ''
 
- 
+
 def start():
     get_token()
     get_excel_date()
@@ -80,16 +82,19 @@ def get_orgs(token):
         print(i["id"], i["name"])
         org.append(i["name"])
         org_id.append(i["id"])
-
+    
     print('\n')
-    #get_devices(token)
+
+    global user_sel
+    user_sel = input("Please select an organization... ")
     get_devices_detailed(token)
+    #get_devices(token)
+
 
 #Get detailed information on devices
 def get_devices_detailed(token):
     data = [] #Array to store values for displaying in tabulate table
     header = ["System Name", "ID", "Status", "OS", "Brand", "Model", "Serial Number", "Processor"] #Headers for tabulate table columns
-    user_sel = input("Please select an organization... ")
 
     headers = {
         "Accept": "application/json",
@@ -97,7 +102,7 @@ def get_devices_detailed(token):
     }
 
     #Using the built in device filter param to only get detailed info for devices in a specific org
-    device_url = endpoint + "devices-detailed/" + "?df=org=" + user_sel
+    device_url = endpoint + "devices-detailed/" + "?df=org=" + (user_sel if user_sel != '' else domain_org_id)
     devices = requests.get(device_url, headers=headers).json()
 
     global ninja_ids
@@ -140,50 +145,49 @@ def get_devices_detailed(token):
         print("\nThere are no devices currently associated with this organization...\n")
         sys.exit()
 
+
 # Gather devices based on users organization selection
-def get_devices(token):
-    user_sel = input("Please select an organization... ")
+# def get_devices(token):
+#     headers = {
+#         "Accept": "application/json",
+#         "Authorization": "Bearer " + token,
+#     }
 
-    headers = {
-        "Accept": "application/json",
-        "Authorization": "Bearer " + token,
-    }
+#     device_url = endpoint + "/organization/" + user_sel + "/devices/"
+#     devices = requests.get(device_url, headers=headers).json()
 
-    device_url = endpoint + "/organization/" + user_sel + "/devices/"
-    devices = requests.get(device_url, headers=headers).json()
+#     global ninja_ids
+#     global ninja_system_names 
+#     global ninja_status
 
-    global ninja_ids
-    global ninja_system_names 
-    global ninja_status
+#     ninja_ids = []
+#     ninja_system_names = []
+#     ninja_status = []
 
-    ninja_ids = []
-    ninja_system_names = []
-    ninja_status = []
+#     l = 0
 
-    l = 0
+#     print('-'*60)
+#     print("\nDevices in NinjaOne...\n")
+#     print('-'*60, '\n')
 
-    print('-'*60)
-    print("\nDevices in NinjaOne...\n")
-    print('-'*60, '\n')
+#     if len(devices) >= 1:
+#         for k in devices:
+#             ninja_ids.append(int(k["id"]))
+#             ninja_system_names.append(str(k["systemName"]))
+#             ninja_status.append(str(k["offline"]))
 
-    if len(devices) >= 1:
-        for k in devices:
-            ninja_ids.append(int(k["id"]))
-            ninja_system_names.append(str(k["systemName"]))
-            ninja_status.append(str(k["offline"]))
+#             if ninja_status[l] == 'False':
+#                 status = 'Online'
+#             else:
+#                 status = "Offline"
 
-            if ninja_status[l] == 'False':
-                status = 'Online'
-            else:
-                status = "Offline"
-
-            print(f"{'System Name' : <15}{'ID' : ^10}{'Status' : >10}")
-            print(f"{'-'*12 : <15}{'-'*6 : ^10}{'-'*8 : >10}")
-            print(f"{ninja_system_names[l] : <15}{ninja_ids[l] : ^10}{status : >10} \n")
-            l = l + 1
-    else:
-        print("\nThere are no devices currently associated with this organization...\n")
-        sys.exit()
+#             print(f"{'System Name' : <15}{'ID' : ^10}{'Status' : >10}")
+#             print(f"{'-'*12 : <15}{'-'*6 : ^10}{'-'*8 : >10}")
+#             print(f"{ninja_system_names[l] : <15}{ninja_ids[l] : ^10}{status : >10} \n")
+#             l = l + 1
+#     else:
+#         print("\nThere are no devices currently associated with this organization...\n")
+#         sys.exit()
 
 
 # Parse info from computers.csv to be able to compare in a later function
@@ -309,17 +313,20 @@ def add_to_domain():
     p = subprocess.Popen('powershell -command' + cmd)
     p.communicate()
 
+
 # Get all computers associated with Active Directory
 def get_ad_computers():
     cmd = " Get-ADComputer -Filter * -Properties IPv4Address | Export-Csv C:\\Users\\bkukla\\A-VSCode\\NinjaOneToolKit\\computers.csv"
     p = subprocess.Popen('powershell -command' + cmd)
     p.communicate()
 
+
 # WIP : Add device to NinjaOne Organization
 # def add_to_ninja():
 #     cmd = " "
 #     p = subprocess.Popen('powershell -command' + cmd)
 #     p.communicate
+
 
 #Comparison functions
 def in_ninja(device):
@@ -334,9 +341,11 @@ def in_domain(device):
     else:
         return False
 
+
 #Get FQDN     
 def get_domain_name():
     return socket.getfqdn().split('.', 1)[1]
+
 
 # Write results to results.txt file in the specified log path
 def write_to_file(ninja_missing, ad_missing, both):
@@ -379,7 +388,7 @@ def main():
         check_csv()
     elif choice == 3: # List devices missing from NinjaOne and the Domain
         get_ad_computers()
-        get_orgs(api_token)   
+        get_devices_detailed(api_token)  
         check_csv()
         compare_res()
     elif choice == 4: # Add computer to the Domain
