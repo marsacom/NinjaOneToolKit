@@ -75,18 +75,17 @@ def get_orgs(token):
     org = []
     org_id = []
 
-    print('-'*60)
-    print("\nOrganizations\n")
-    print('-'*60, '\n')
+    print('-'*80 + "\nOrganizations\n" + '-'*80 + '\n')
+
     for i in organizations:
-        print(i["id"], i["name"])
+        print(str(i["id"]) + ". " + str(i["name"]))
         org.append(i["name"])
         org_id.append(i["id"])
-    
+
     print('\n')
 
     global user_sel
-    user_sel = input("Please select an organization... ")
+    user_sel = input("Please select an organization " + "(1-" + str(len(organizations)) + ")... ")
     get_devices_detailed(token)
     #get_devices(token)
 
@@ -123,9 +122,7 @@ def get_devices_detailed(token):
     ninja_system_serials = []
     ninja_processors = []
 
-    print('-'*60)
-    print("\nDevices in NinjaOne...\n")
-    print('-'*60, '\n')
+    print('\n' + '-'*80 + "\nDevices in NinjaOne...\n" + '-'*80)
 
     if len(devices) >= 1:
         for k in devices:
@@ -166,9 +163,9 @@ def get_devices_detailed(token):
 
 #     l = 0
 
-#     print('-'*60)
+#     print('-'*80)
 #     print("\nDevices in NinjaOne...\n")
-#     print('-'*60, '\n')
+#     print('-'*80, '\n')
 
 #     if len(devices) >= 1:
 #         for k in devices:
@@ -198,13 +195,13 @@ def check_csv():
 
     global ad_rows
     global ad_dns
-    global ad_ip
-    global ad_name
+    global ad_ips
+    global ad_names
 
     ad_rows = []
     ad_dns = []
-    ad_ip = []
-    ad_name = []
+    ad_ips = []
+    ad_names = []
 
     with open(file, 'r') as csvfile:
         reader = csv.reader(csvfile)
@@ -216,23 +213,18 @@ def check_csv():
         for i in range(2):
             ad_rows.pop(0)
 
-        print('-'*60)
-        print("\nDevices in the Domain...\n")
-        print('-'*60, '\n')
+        print('\n' + '-'*80 + "\nDevices in the Domain...\n" + '-'*80)
 
         for row in ad_rows:
-            ad_name.append(row[4])
+            ad_names.append(row[4])
             ad_dns.append(row[1])
             if row[3] == '': # Some of the IPs are unknown in the domain for some reason, this is just to check 
-                ad_ip.append('   UNKNOWN  ')
+                ad_ips.append('   UNKNOWN  ')
             else:
-                ad_ip.append(row[3])
+                ad_ips.append(row[3])
             data.append([row[4], row[1], 'UNKNOWN' if row[3] == '' else row[3]])
 
         print(tabulate(data, headers=header, tablefmt="double_grid"))
-            # print(f"{'System Name' : <20}{'IP' : ^15}{'DNS Name' : >20}")
-            # print(f"{'-'*12 : <20}{'-'*12 : ^15}{'-'*18 : >25}")
-            # print(f"{ad_name[l] : <20}{ad_ip[l] : ^2}{ad_dns[l] : >28} \n")
 
 
 # Load excel sheet and gather device info
@@ -271,8 +263,7 @@ def compare_res():
     ad_missing = []
     both = []
 
-    print('-'*60)
-    print("\nDisplaying Devices In The Excel File And Their Statuses In NinjaOne & Domain... \n")
+    print('\n' + '-'*80 + "\nDevices In The Excel File And Their Statuses In NinjaOne & Domain...\n" + '-'*80)
 
     for i in range(len(xl_system_names)):
         if in_domain(xl_system_names[i]) == False:
@@ -294,14 +285,39 @@ def compare_res():
         data.append([xl_system_names[i], 'YES' if in_domain(xl_system_names[i]) else 'NO', 'YES' if in_ninja(xl_system_names[i]) else 'NO'])
     
     print(tabulate(data, headers=header, tablefmt='double_grid'))
+
     # Which devices are missing from NinjaOne & Domain
     for d in range(len(ninja_missing)):
         if ninja_missing[d] in ad_missing:
             both.append(ninja_missing[d])
 
+    #Write to the log file and save changes made to the workbook
     write_to_file(ninja_missing, ad_missing, both)
-
     wb.save(path)
+
+    verify_xl_list() # Compare the systems included in the spreadsheet and see if there are any systems in Ninja and/or AD that are not in the spreadsheet and display for the user to see
+
+
+# Check if there are any PCs in Ninja/Domain that have not been added to the xl sheet
+def verify_xl_list():
+    list = []
+    for i in range(len(ad_names)):
+        if ad_names[i] in xl_system_names:
+            pass
+        else:
+            list.append(ad_names[i])
+    
+    for h in range(len(ninja_system_names)):    
+        if ninja_system_names[h] in xl_system_names:
+            pass
+        else:
+            # Only add the system name from Ninja to the list if it was not already added during the AD check
+            if ninja_system_names[h] not in list:
+                list.append(ninja_system_names[h])
+    
+    print('-'*80 + "\nDevices in Ninja/Domain that are not in the spreadsheet..." + '\n' + '-'*80)
+    for l in list:
+        print(l)
 
 
 # Add a computer to the domain remotely
@@ -336,7 +352,7 @@ def in_ninja(device):
         return False
 
 def in_domain(device):
-    if device in ad_name:
+    if device in ad_names:
         return True
     else:
         return False
@@ -365,8 +381,7 @@ def write_to_file(ninja_missing, ad_missing, both):
                 f.write(dev_lbl + both[k] + " has NOT yet joined the Domain or NinjaOne... \n")
             f.write("\nSUCCESS: Script completed at - " + str(datetime.now()))
 
-            print('-'*60)
-            print("\nSUCCESS: Results have been saved in " + os.getenv('LOG_PATH') + '...\n')   
+            print('-'*80 + "\n\nSUCCESS: Results have been saved in " + os.getenv('LOG_PATH') + '...\n')   
 
     except FileNotFoundError:
         print("\nERROR: File not found. Please ensure the path for logs is set correctly in the .env file...\n")  
@@ -375,9 +390,8 @@ def write_to_file(ninja_missing, ad_missing, both):
 # Main
 def main():
     start()   
-    print("\nStarting NinjaOneToolKit v.1.0...")
-    print('-'*60)
-    print(" 1: List all devices in NinjaOne\n", "2: List all devices in the Domain\n", "3: List devices missing from NinjaOne and the Domain\n", "4: Add computer to the Domain\n", "5: Add computer to NinjaOne\n")
+    print("\nStarting NinjaOneToolKit v.1.1...")
+    print('-'*80 + "\n 1: List all devices in NinjaOne\n", "2: List all devices in the Domain\n", "3: List devices missing from NinjaOne and the Domain\n", "4: Add computer to the Domain\n", "5: Add computer to NinjaOne\n")
 
     choice = int(input("Please select an option from the list above (1-5)... "))
     
@@ -386,7 +400,7 @@ def main():
     elif choice == 2: # List all devices in the Domain
         get_ad_computers()
         check_csv()
-    elif choice == 3: # List devices missing from NinjaOne and the Domain
+    elif choice == 3: # Get devices in NinjaOne and the Domain and compare with the XLSX Sheet
         get_ad_computers()
         get_devices_detailed(api_token)  
         check_csv()
