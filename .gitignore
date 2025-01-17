@@ -15,3 +15,7 @@ computers.csv
 
 # Ignore any test files
 test*.*
+
+#Ignore powershell stuff
+pwrshl/
+addtoninja.ps1

@@ -320,28 +320,57 @@ def verify_xl_list():
         print(l)
 
 
+# Generate an excel file with all devices in a specified organization and their information
+def create_excel():
+    global xl_ids
+    global xl_system_names 
+    global xl_row_num
+    global xl_ninja_statuses
+    global xl_domain_statuses
+    #Save info from the xlsx file
+    xl_ids = []
+    xl_system_names = []
+    xl_row_num = []
+    xl_ninja_statuses = []
+    xl_domain_statuses = []
+
+    l = 1
+    #Iterate through the sheet to save values
+    for row in ws.iter_rows(min_row=2, max_row=80, values_only=True):
+        if row[0] == None:
+            pass
+        else:
+            l = l + 1
+            xl_ids.append(row[2])
+            xl_system_names.append(row[0])
+            xl_row_num.append(l)
+            xl_ninja_statuses.append(row[4])
+            xl_domain_statuses.append(row[3])    
+
+
 # Add a computer to the domain remotely
 def add_to_domain():
     name = input("Please enter the name of the PC you wish to join to the domain... ex. WKSSSISXX-XX : ")
 
     # Using same creds for local and domain admin as 
-    cmd = " Add-Computer -ComputerName " + str(name) + " -LocalCredential ssis\\administrator -DomainName ssis.local -Credential ssis\\administrator -Restart"
+    cmd = " Add-Computer -ComputerName " + str(name) + " -LocalCredential " + str(os.getenv('DOMAIN_CREDS')) + " -DomainName " + str(os.getenv('FQDN')) + " -Credential " + str(os.getenv('DOMAIN_CREDS')) + " -Restart"
     p = subprocess.Popen('powershell -command' + cmd)
     p.communicate()
 
 
 # Get all computers associated with Active Directory
 def get_ad_computers():
-    cmd = " Get-ADComputer -Filter * -Properties IPv4Address | Export-Csv C:\\Users\\bkukla\\A-VSCode\\NinjaOneToolKit\\computers.csv"
+    cmd = " Get-ADComputer -Filter * -Properties IPv4Address | Export-Csv " + str(os.getenv('CSV_PATH'))
     p = subprocess.Popen('powershell -command' + cmd)
     p.communicate()
 
 
 # WIP : Add device to NinjaOne Organization
-# def add_to_ninja():
-#     cmd = " "
-#     p = subprocess.Popen('powershell -command' + cmd)
-#     p.communicate
+def add_to_ninja():
+    if os.path.exists(str(os.getenv('INSTALL_PATH'))):
+        cmd = ""
+        p = subprocess.Popen('powershell -command' + cmd)
+        p.communicate
 
 
 #Comparison functions
