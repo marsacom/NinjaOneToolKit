@@ -41,7 +41,7 @@ user_sel = ''
 
 def start():
     get_token()
-    get_excel_date()
+    get_excel_data()
 
 
 # Call api endpoint for bearer token, currently this is just uses a machine-to-machine application using client credentials
@@ -228,7 +228,7 @@ def check_csv():
 
 
 # Load excel sheet and gather device info
-def get_excel_date():
+def get_excel_data():
     global xl_ids
     global xl_system_names 
     global xl_row_num
