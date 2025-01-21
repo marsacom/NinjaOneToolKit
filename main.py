@@ -87,13 +87,12 @@ def get_orgs(token):
     global user_sel
     user_sel = input("Please select an organization " + "(1-" + str(len(organizations)) + ")... ")
     get_devices_detailed(token)
-    #get_devices(token)
 
 
-#Get detailed information on devices
+# Get detailed information on devices
 def get_devices_detailed(token):
     data = [] #Array to store values for displaying in tabulate table
-    header = ["System Name", "ID", "Status", "OS", "Brand", "Model", "Serial Number", "Processor"] #Headers for tabulate table columns
+    header = ["System Name", "ID", "Status", "OS", "Brand", "Model", "Serial Number", "Processor", "Last Login"] #Headers for tabulate table columns
 
     headers = {
         "Accept": "application/json",
@@ -135,7 +134,7 @@ def get_devices_detailed(token):
             ninja_system_serials.append(str(k["system"]["serialNumber"]))
             ninja_processors.append(str(k["processors"][0]["name"]))
 
-            data.append([str(k["systemName"]), str(k["id"]), "Offline" if str(k["offline"]) == "True" else "Online", str(k["os"]["name"]), str(k["system"]["manufacturer"]), str(k["system"]["model"]), str(k["system"]["serialNumber"]), str(k["processors"][0]["name"])])
+            data.append([str(k["systemName"]), str(k["id"]), "Offline" if str(k["offline"]) == "True" else "Online", str(k["os"]["name"]), str(k["system"]["manufacturer"]), str(k["system"]["model"]), str(k["system"]["serialNumber"]), str(k["processors"][0]["name"]), get_last_user(token, k["id"])])
             
         print(tabulate(data, headers=header, tablefmt='double_grid'))
     else:
@@ -143,49 +142,19 @@ def get_devices_detailed(token):
         sys.exit()
 
 
-# Gather devices based on users organization selection
-# def get_devices(token):
-#     headers = {
-#         "Accept": "application/json",
-#         "Authorization": "Bearer " + token,
-#     }
+# Get the last logged on user
+def get_last_user(token, dev_id):
+    headers = {
+        "Accept": "application/json",
+        "Authorization": "Bearer " + token,
+    }
 
-#     device_url = endpoint + "/organization/" + user_sel + "/devices/"
-#     devices = requests.get(device_url, headers=headers).json()
+    #Passing the device ID to the endpoint
+    url = endpoint + "device/" + str(dev_id) + "/last-logged-on-user"
+    device_id = requests.get(url, headers=headers).json()    
+    id = device_id["userName"]
 
-#     global ninja_ids
-#     global ninja_system_names 
-#     global ninja_status
-
-#     ninja_ids = []
-#     ninja_system_names = []
-#     ninja_status = []
-
-#     l = 0
-
-#     print('-'*80)
-#     print("\nDevices in NinjaOne...\n")
-#     print('-'*80, '\n')
-
-#     if len(devices) >= 1:
-#         for k in devices:
-#             ninja_ids.append(int(k["id"]))
-#             ninja_system_names.append(str(k["systemName"]))
-#             ninja_status.append(str(k["offline"]))
-
-#             if ninja_status[l] == 'False':
-#                 status = 'Online'
-#             else:
-#                 status = "Offline"
-
-#             print(f"{'System Name' : <15}{'ID' : ^10}{'Status' : >10}")
-#             print(f"{'-'*12 : <15}{'-'*6 : ^10}{'-'*8 : >10}")
-#             print(f"{ninja_system_names[l] : <15}{ninja_ids[l] : ^10}{status : >10} \n")
-#             l = l + 1
-#     else:
-#         print("\nThere are no devices currently associated with this organization...\n")
-#         sys.exit()
-
+    return id
 
 # Parse info from computers.csv to be able to compare in a later function
 def check_csv():
