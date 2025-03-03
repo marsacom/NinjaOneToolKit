@@ -20,6 +20,7 @@ import subprocess
 from tabulate import tabulate
 from dotenv import load_dotenv
 from datetime import datetime
+import threading
 
 endpoint = "https://app.ninjarmm.com/v2/"
 oauth_url = "https://app.ninjarmm.com/ws/oauth/token"
@@ -92,7 +93,7 @@ def get_orgs(token):
 # Get detailed information on devices
 def get_devices_detailed(token):
     data = [] #Array to store values for displaying in tabulate table
-    header = ["System Name", "ID", "Status", "OS", "Brand", "Model", "Serial Number", "Processor", "Last Login"] #Headers for tabulate table columns
+    header = ["System Name", "ID", "Status", "OS", "Brand", "Model", "Serial Number", "Processor", "Last Login", "Last Boot Time"] #Headers for tabulate table columns
 
     headers = {
         "Accept": "application/json",
@@ -111,6 +112,8 @@ def get_devices_detailed(token):
     global ninja_system_models
     global ninja_system_serials
     global ninja_processors
+    global ninja_last_login
+    global ninja_last_boot
 
     ninja_ids = []
     ninja_system_names = []
@@ -120,6 +123,8 @@ def get_devices_detailed(token):
     ninja_system_models = []
     ninja_system_serials = []
     ninja_processors = []
+    ninja_last_login = []
+    ninja_last_boot = []
 
     print('\n' + '-'*80 + "\nDevices in NinjaOne...\n" + '-'*80)
 
@@ -133,8 +138,12 @@ def get_devices_detailed(token):
             ninja_system_models.append(str(k["system"]["model"]))
             ninja_system_serials.append(str(k["system"]["serialNumber"]))
             ninja_processors.append(str(k["processors"][0]["name"]))
+            ninja_last_login.append(str(k["lastLoggedInUser"]))
+            ninja_last_boot.append(int(k["os"]["lastBootTime"]))
 
-            data.append([str(k["systemName"]), str(k["id"]), "Offline" if str(k["offline"]) == "True" else "Online", str(k["os"]["name"]), str(k["system"]["manufacturer"]), str(k["system"]["model"]), str(k["system"]["serialNumber"]), str(k["processors"][0]["name"]), get_last_user(token, k["id"])])
+            data.append([str(k["systemName"]), str(k["id"]), "Offline" if str(k["offline"]) == "True" else "Online", str(k["os"]["name"]),  
+                         str(k["system"]["manufacturer"]), str(k["system"]["model"]), str(k["system"]["serialNumber"]), str(k["processors"][0]["name"]), 
+                         str(k["lastLoggedInUser"]), datetime.utcfromtimestamp(int(k["os"]["lastBootTime"])).strftime('%m-%d-%Y %H:%M:%S')])
             
         print(tabulate(data, headers=header, tablefmt='double_grid'))
     else:
@@ -143,18 +152,18 @@ def get_devices_detailed(token):
 
 
 # Get the last logged on user
-def get_last_user(token, dev_id):
-    headers = {
-        "Accept": "application/json",
-        "Authorization": "Bearer " + token,
-    }
+# def get_last_logins(token, dev_id):
+#     headers = {
+#         "Accept": "application/json",
+#         "Authorization": "Bearer " + token,
+#     }
 
-    #Passing the device ID to the endpoint
-    url = endpoint + "device/" + str(dev_id) + "/last-logged-on-user"
-    device_id = requests.get(url, headers=headers).json()    
-    id = device_id["userName"]
+#     #Passing the device ID to the endpoint
+#     url = endpoint + "device/" + str(dev_id) + "/last-logged-on-user"
+#     device_id = requests.get(url, headers=headers).json()    
+#     id = device_id["userName"]
 
-    return id
+#     return id
 
 # Parse info from computers.csv to be able to compare in a later function
 def check_csv():
@@ -264,7 +273,8 @@ def compare_res():
     write_to_file(ninja_missing, ad_missing, both)
     wb.save(path)
 
-    verify_xl_list() # Compare the systems included in the spreadsheet and see if there are any systems in Ninja and/or AD that are not in the spreadsheet and display for the user to see
+    verify_xl_list() # Compare the systems included in the spreadsheet and see if there are any systems in Ninja 
+                     # and/or AD that are not in the spreadsheet and display for the user to see
 
 
 # Check if there are any PCs in Ninja/Domain that have not been added to the xl sheet
@@ -323,6 +333,7 @@ def add_to_domain():
 
     # Using same creds for local and domain admin as 
     cmd = " Add-Computer -ComputerName " + str(name) + " -LocalCredential " + str(os.getenv('DOMAIN_CREDS')) + " -DomainName " + str(os.getenv('FQDN')) + " -Credential " + str(os.getenv('DOMAIN_CREDS')) + " -Restart"
+    
     p = subprocess.Popen('powershell -command' + cmd)
     p.communicate()
 
@@ -389,7 +400,8 @@ def write_to_file(ninja_missing, ad_missing, both):
 def main():
     start()   
     print("\nStarting NinjaOneToolKit v.1.1...")
-    print('-'*80 + "\n 1: List all devices in NinjaOne\n", "2: List all devices in the Domain\n", "3: List devices missing from NinjaOne and the Domain\n", "4: Add computer to the Domain\n", "5: Add computer to NinjaOne\n")
+    print('-'*80 + "\n 1: List all devices in NinjaOne\n", "2: List all devices in the Domain\n", "3: List devices missing from NinjaOne and the Domain\n", 
+          "4: Add computer to the Domain\n", "5: Add computer to NinjaOne\n")
 
     choice = int(input("Please select an option from the list above (1-5)... "))
     
