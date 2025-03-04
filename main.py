@@ -14,13 +14,12 @@ import sys
 import csv
 import warnings
 import requests
-import socket
 import openpyxl as xl
 import subprocess
+import argparse
 from tabulate import tabulate
 from dotenv import load_dotenv
 from datetime import datetime
-import threading
 
 endpoint = "https://app.ninjarmm.com/v2/"
 oauth_url = "https://app.ninjarmm.com/ws/oauth/token"
@@ -29,20 +28,21 @@ oauth_url = "https://app.ninjarmm.com/ws/oauth/token"
 load_dotenv() 
 path = os.getenv('XL_PATH')
 
+# Arguements
+parser = argparse.ArgumentParser(description="A CLI Application for IT Technicians to access and manage Organizations & Devices in NinjaOne(NinjaRMM) straight from the Command Line", 
+                                 prog="NinjaOneToolKit", usage="python3 main.py [options]")
+# parser.add_argument('-f', '--file', type=str, help="The XLSX file you wish to compare results from Ninja & AD to...", required=False)
+# parser.add_argument('-gf', '--generate-file', help="Use this flag if you wish to generate a XLSX file of results...", action='store_true')
+
+args = parser.parse_args()
+
 # This is the ID of the organization in NinjaOne that your account running the scripts domain  
 domain_org_id = os.getenv('DOMAIN_ORG_ID')
 
 # This is specifically to ignore the random warning that is generated when accessing the worksheet via openpyxl (does not affect the script)
 warnings.simplefilter('ignore')
 
-wb = xl.load_workbook(path)
-ws = wb['Computers']
 user_sel = ''
-
-
-def start():
-    get_token()
-    get_excel_data()
 
 
 # Call api endpoint for bearer token, currently this is just uses a machine-to-machine application using client credentials
@@ -73,6 +73,7 @@ def get_orgs(token):
 
     organizations = requests.get(org_url, headers=headers).json()
 
+    global org
     org = []
     org_id = []
 
@@ -87,20 +88,21 @@ def get_orgs(token):
 
     global user_sel
     user_sel = input("Please select an organization " + "(1-" + str(len(organizations)) + ")... ")
+    
     get_devices_detailed(token)
 
 
 # Get detailed information on devices
 def get_devices_detailed(token):
-    data = [] #Array to store values for displaying in tabulate table
-    header = ["System Name", "ID", "Status", "OS", "Brand", "Model", "Serial Number", "Processor", "Last Login", "Last Boot Time"] #Headers for tabulate table columns
+    data = [] # Array to store values for displaying in tabulate table
+    header = ["System Name", "ID", "Status", "OS", "Brand", "Model", "Serial Number", "Memory", "Processor", "Last Login", "Last Boot Time"] #Headers for tabulate table columns
 
     headers = {
         "Accept": "application/json",
         "Authorization": "Bearer " + token,
     }
 
-    #Using the built in device filter param to only get detailed info for devices in a specific org
+    # Using the built in device filter param to only get detailed info for devices in a specific org
     device_url = endpoint + "devices-detailed/" + "?df=org=" + (user_sel if user_sel != '' else domain_org_id)
     devices = requests.get(device_url, headers=headers).json()
 
@@ -111,6 +113,7 @@ def get_devices_detailed(token):
     global ninja_system_brands
     global ninja_system_models
     global ninja_system_serials
+    global ninja_system_memory
     global ninja_processors
     global ninja_last_login
     global ninja_last_boot
@@ -122,6 +125,7 @@ def get_devices_detailed(token):
     ninja_system_brands = []
     ninja_system_models = []
     ninja_system_serials = []
+    ninja_system_memory = []
     ninja_processors = []
     ninja_last_login = []
     ninja_last_boot = []
@@ -137,82 +141,36 @@ def get_devices_detailed(token):
             ninja_system_brands.append(str(k["system"]["manufacturer"]))
             ninja_system_models.append(str(k["system"]["model"]))
             ninja_system_serials.append(str(k["system"]["serialNumber"]))
+            ninja_system_memory.append(round((int(k["memory"]["capacity"]))/(1024 ** 3)))
             ninja_processors.append(str(k["processors"][0]["name"]))
             ninja_last_login.append(str(k["lastLoggedInUser"]))
             ninja_last_boot.append(int(k["os"]["lastBootTime"]))
 
             data.append([str(k["systemName"]), str(k["id"]), "Offline" if str(k["offline"]) == "True" else "Online", str(k["os"]["name"]),  
-                         str(k["system"]["manufacturer"]), str(k["system"]["model"]), str(k["system"]["serialNumber"]), str(k["processors"][0]["name"]), 
-                         str(k["lastLoggedInUser"]), datetime.utcfromtimestamp(int(k["os"]["lastBootTime"])).strftime('%m-%d-%Y %H:%M:%S')])
+                         str(k["system"]["manufacturer"]), str(k["system"]["model"]), str(k["system"]["serialNumber"]), str(round(int(k["memory"]["capacity"]) / (1024 ** 3))) + " GB",  
+                         str(k["processors"][0]["name"]), str(k["lastLoggedInUser"]), 
+                         datetime.fromtimestamp(int(k["os"]["lastBootTime"])).strftime('%m-%d-%Y %H:%M:%S')])
             
-        print(tabulate(data, headers=header, tablefmt='double_grid'))
+        print(tabulate(data, headers=header, tablefmt='simple_grid'))
     else:
         print("\nThere are no devices currently associated with this organization...\n")
         sys.exit()
 
 
-# Get the last logged on user
-# def get_last_logins(token, dev_id):
-#     headers = {
-#         "Accept": "application/json",
-#         "Authorization": "Bearer " + token,
-#     }
-
-#     #Passing the device ID to the endpoint
-#     url = endpoint + "device/" + str(dev_id) + "/last-logged-on-user"
-#     device_id = requests.get(url, headers=headers).json()    
-#     id = device_id["userName"]
-
-#     return id
-
-# Parse info from computers.csv to be able to compare in a later function
-def check_csv():
-    data = [] #Array to store values for displaying in tabulate table
-    header = ["System Name", "DNS Name", "IP Address"] #Headers for tabulate table columns1
-    file = os.getenv('CSV_PATH')
-
-    global ad_rows
-    global ad_dns
-    global ad_ips
-    global ad_names
-
-    ad_rows = []
-    ad_dns = []
-    ad_ips = []
-    ad_names = []
-
-    with open(file, 'r') as csvfile:
-        reader = csv.reader(csvfile)
-        
-        for row in reader:
-            ad_rows.append(row)
-
-        # This just deletes the first 2 items in the list to get rid of the bullshit info we dont want
-        for i in range(2):
-            ad_rows.pop(0)
-
-        print('\n' + '-'*80 + "\nDevices in the Domain...\n" + '-'*80)
-
-        for row in ad_rows:
-            ad_names.append(row[4])
-            ad_dns.append(row[1])
-            if row[3] == '': # Some of the IPs are unknown in the domain for some reason, this is just to check 
-                ad_ips.append('   UNKNOWN  ')
-            else:
-                ad_ips.append(row[3])
-            data.append([row[4], row[1], 'UNKNOWN' if row[3] == '' else row[3]])
-
-        print(tabulate(data, headers=header, tablefmt="double_grid"))
-
-
 # Load excel sheet and gather device info
 def get_excel_data():
+    global wb
+    global ws
     global xl_ids
     global xl_system_names 
     global xl_row_num
     global xl_ninja_statuses
     global xl_domain_statuses
-    #Save info from the xlsx file
+
+    # Initialize workbook
+    wb = xl.load_workbook(path)
+    ws = wb['Computers']
+
     xl_ids = []
     xl_system_names = []
     xl_row_num = []
@@ -220,20 +178,20 @@ def get_excel_data():
     xl_domain_statuses = []
 
     l = 1
-    #Iterate through the sheet to save values
-    for row in ws.iter_rows(min_row=2, max_row=80, values_only=True):
+    # Iterate through the sheet to save values
+    for row in ws.iter_rows(min_row=int(os.getenv('XL_MIN_ROW')), max_row=int(os.getenv('XL_MAX_ROW')), values_only=True):
         if row[0] == None:
             pass
         else:
             l = l + 1
-            xl_ids.append(row[2])
-            xl_system_names.append(row[0])
+            xl_ids.append(row[int(os.getenv('XL_ID_COL'))])
+            xl_system_names.append(row[int(os.getenv('XL_SYS_NAME_COL'))])
             xl_row_num.append(l)
-            xl_ninja_statuses.append(row[4])
-            xl_domain_statuses.append(row[3])
+            xl_ninja_statuses.append(row[int(os.getenv('XL_NINJA_STATUS_COL'))])
+            xl_domain_statuses.append(row[int(os.getenv('XL_DOMAIN_STATUS_COL'))])
 
 
-# Compare results of devices in NinjaOne to the Excel File and update values in the "Computers Sheet"
+# Compare results of devices in NinjaOne to the Excel File and update values in the "Computers" sheet
 def compare_res():
     data = [] #Array to store values for displaying in tabulate table
     header = ["Device","In Domain?", "In Ninja?"] #Headers for tabulate table columns    
@@ -246,19 +204,19 @@ def compare_res():
     for i in range(len(xl_system_names)):
         if in_domain(xl_system_names[i]) == False:
             ad_missing.append(xl_system_names[i])
-            ws['D'+str(xl_row_num[i])] = 'N'
+            ws[str(os.getenv('XL_DOMAIN_STATUS_COL_LETTER'))+str(xl_row_num[i])] = 'N'
             if in_ninja(xl_system_names[i]) == False :
                 ninja_missing.append((xl_system_names[i]))
-                ws['E'+str(xl_row_num[i])] = 'N'
+                ws[str(os.getenv('XL_NINJA_STATUS_COL_LETTER'))+str(xl_row_num[i])] = 'N'
             else:
-                ws['E'+str(xl_row_num[i])] = 'Y'
+                ws[str(os.getenv('XL_NINJA_STATUS_COL_LETTER'))+str(xl_row_num[i])] = 'Y'
         else:
-            ws['D'+str(xl_row_num[i])] = 'Y'
+            ws[str(os.getenv('XL_DOMAIN_STATUS_COL_LETTER'))+str(xl_row_num[i])] = 'Y'
             if in_ninja(xl_system_names[i]) == False:
                 ninja_missing.append(xl_system_names[i])
-                ws['E'+str(xl_row_num[i])] = 'N'
+                ws[str(os.getenv('XL_NINJA_STATUS_COL_LETTER'))+str(xl_row_num[i])] = 'N'
             else:
-                ws['E'+str(xl_row_num[i])] = 'Y'
+                ws[str(os.getenv('XL_NINJA_STATUS_COL_LETTER'))+str(xl_row_num[i])] = 'Y'
 
         data.append([xl_system_names[i], 'YES' if in_domain(xl_system_names[i]) else 'NO', 'YES' if in_ninja(xl_system_names[i]) else 'NO'])
     
@@ -273,76 +231,100 @@ def compare_res():
     write_to_file(ninja_missing, ad_missing, both)
     wb.save(path)
 
-    verify_xl_list() # Compare the systems included in the spreadsheet and see if there are any systems in Ninja 
-                     # and/or AD that are not in the spreadsheet and display for the user to see
-
-
-# Check if there are any PCs in Ninja/Domain that have not been added to the xl sheet
-def verify_xl_list():
-    list = []
-    for i in range(len(ad_names)):
-        if ad_names[i] in xl_system_names:
-            pass
-        else:
-            list.append(ad_names[i])
-    
-    for h in range(len(ninja_system_names)):    
-        if ninja_system_names[h] in xl_system_names:
-            pass
-        else:
-            # Only add the system name from Ninja to the list if it was not already added during the AD check
-            if ninja_system_names[h] not in list:
-                list.append(ninja_system_names[h])
-    
-    print('-'*80 + "\nDevices in Ninja/Domain that are not in the spreadsheet..." + '\n' + '-'*80)
-    for l in list:
-        print(l)
-
 
 # Generate an excel file with all devices in a specified organization and their information
-def create_excel():
-    global xl_ids
-    global xl_system_names 
-    global xl_row_num
-    global xl_ninja_statuses
-    global xl_domain_statuses
-    #Save info from the xlsx file
-    xl_ids = []
-    xl_system_names = []
-    xl_row_num = []
-    xl_ninja_statuses = []
-    xl_domain_statuses = []
+def generate_xlsx():
 
-    l = 1
-    #Iterate through the sheet to save values
-    for row in ws.iter_rows(min_row=2, max_row=80, values_only=True):
-        if row[0] == None:
-            pass
-        else:
-            l = l + 1
-            xl_ids.append(row[2])
-            xl_system_names.append(row[0])
-            xl_row_num.append(l)
-            xl_ninja_statuses.append(row[4])
-            xl_domain_statuses.append(row[3])    
+    print("Generating XLSX file with results of devices in Ninja...")
 
+    # Initizlize & create workbook/worksheet
+    wb = xl.Workbook()
+    ws = wb.active
 
-# Add a computer to the domain remotely
-def add_to_domain():
-    name = input("Please enter the name of the PC you wish to join to the domain... ex. WKSSSISXX-XX : ")
+    # First lets add our headers to the XLSX file
+    ws['A1'] = "System Name"
+    ws['B1'] = "Status"
+    ws['C1'] = "OS"
+    ws['D1'] = "Brand"
+    ws['E1'] = "Model"
+    ws['F1'] = "Serial #"
+    ws['G1'] = "Memory (GB)"
+    ws['H1'] = "Processor"
+    ws['I1'] = "Last Login"
+    ws['J1'] = "Last Boot Time"
 
-    # Using same creds for local and domain admin as 
-    cmd = " Add-Computer -ComputerName " + str(name) + " -LocalCredential " + str(os.getenv('DOMAIN_CREDS')) + " -DomainName " + str(os.getenv('FQDN')) + " -Credential " + str(os.getenv('DOMAIN_CREDS')) + " -Restart"
-    
-    p = subprocess.Popen('powershell -command' + cmd)
-    p.communicate()
+    # Iterate through the sheet to save values
+    row = 1
+    try: 
+        for i in range(0,len(ninja_system_names)) :
+            row = row + 1
+            ws["A" + str(row)] = ninja_system_names[i]
+            ws["B" + str(row)] = ninja_status[i]
+            ws["C" + str(row)] = ninja_os_names[i]
+            ws["D" + str(row)] = ninja_system_brands[i]
+            ws["E" + str(row)] = ninja_system_models[i]
+            ws["F" + str(row)] = ninja_system_serials[i]
+            ws["G" + str(row)] = ninja_system_memory[i]
+            ws["H" + str(row)] = ninja_processors[i]
+            ws["I" + str(row)] = ninja_last_login[i]
+            ws["J" + str(row)] = ninja_last_boot[i]
 
+        # Concat the selected org name with the file name, adding 1 as the user_sel correlated to the org id
+        # but since we are accessing it in a dictonary, 1 is actually 0, 2 is 1, etc, so we will just add 1...
+        wb_name = str(org[int(user_sel) - 1]).replace(" ", "-") + "-Ninja-Devices.xlsx"
+        wb.save(wb_name)
+
+        print("\nSuccessfully generated XLSX file, file can be found at..." + os.getcwd() + "\\" + wb_name + "\n")
+    except:
+        print("ERROR: Unable to generate XLSX file...")
 
 # Get all computers associated with Active Directory
 def get_ad_computers():
+    # First gather all devices via Get-ADComp cmdlet then parse the information from the CSV
     cmd = " Get-ADComputer -Filter * -Properties IPv4Address | Export-Csv " + str(os.getenv('CSV_PATH'))
     p = subprocess.Popen('powershell -command' + cmd)
     p.communicate()
+
+    # Now let's parse the CSV and check/store values for later comparisons
+    data = [] #Array to store values for displaying in tabulate table
+    header = ["System Name", "DNS Name", "IP Address"] #Headers for tabulate table columns1
+    file = os.getenv('CSV_PATH')
+
+    global ad_rows
+    global ad_dns
+    global ad_ips
+    global ad_names
+
+    ad_rows = []
+    ad_dns = []
+    ad_ips = []
+    ad_names = []
+
+    try:
+        with open(file, 'r') as csvfile:
+            reader = csv.reader(csvfile)
+            
+            for row in reader:
+                ad_rows.append(row)
+
+            # This just deletes the first 2 items in the list to get rid of the bullshit info we dont want
+            for i in range(2):
+                ad_rows.pop(0)
+
+            print('\n' + '-'*80 + "\nDevices in the Domain...\n" + '-'*80)
+
+            for row in ad_rows:
+                ad_names.append(row[4])
+                ad_dns.append(row[1])
+                if row[3] == '': # Some of the IPs are unknown in the domain for some reason, this is just to check 
+                    ad_ips.append('   UNKNOWN  ')
+                else:
+                    ad_ips.append(row[3])
+                data.append([row[4], row[1], 'UNKNOWN' if row[3] == '' else row[3]])
+
+            print(tabulate(data, headers=header, tablefmt="double_grid"))    
+    except FileNotFoundError:
+        print("ERROR: CSV file not found...")
 
 
 # WIP : Add device to NinjaOne Organization
@@ -367,18 +349,20 @@ def in_domain(device):
         return False
 
 
-#Get FQDN     
-def get_domain_name():
-    return socket.getfqdn().split('.', 1)[1]
-
-
 # Write results to results.txt file in the specified log path
 def write_to_file(ninja_missing, ad_missing, both):
 
     dev_lbl = "Device: "
+    folder_path = os.getcwd() + "\\Logs\\"
+    file_path = os.path.join(folder_path, "results.txt")
+
+    if not os.path.exists(folder_path): # Lets check if our file already exists...
+        os.mkdir(folder_path)
+    else:
+        pass
 
     try:    
-        with open(os.getenv('LOG_PATH'), "w") as f:
+        with open(file_path, "w") as f:
             f.write("NinjaOne\n" + "------------\n")
             for i in range(len(ninja_missing)):
                 f.write(dev_lbl + ninja_missing[i] + " has NOT yet joined NinjaOne... \n")
@@ -390,18 +374,18 @@ def write_to_file(ninja_missing, ad_missing, both):
                 f.write(dev_lbl + both[k] + " has NOT yet joined the Domain or NinjaOne... \n")
             f.write("\nSUCCESS: Script completed at - " + str(datetime.now()))
 
-            print('-'*80 + "\n\nSUCCESS: Results have been saved in " + os.getenv('LOG_PATH') + '...\n')   
+            print('-'*80 + "\n\nSUCCESS: Results have been saved in " + file_path + '...\n')   
 
     except FileNotFoundError:
-        print("\nERROR: File not found. Please ensure the path for logs is set correctly in the .env file...\n")  
+        print("\nERROR: File not found. Unable to create log file and/or log folder, please check permissions on your CWD...\n")  
 
 
 # Main
 def main():
-    start()   
-    print("\nStarting NinjaOneToolKit v.1.1...")
-    print('-'*80 + "\n 1: List all devices in NinjaOne\n", "2: List all devices in the Domain\n", "3: List devices missing from NinjaOne and the Domain\n", 
-          "4: Add computer to the Domain\n", "5: Add computer to NinjaOne\n")
+    get_token()
+    print("\nStarting NinjaOneToolKit v.1.1...")   
+    print('-'*80 + "\n 1: List all devices in Ninja\n", "2: List all devices in AD (Domain)\n", "3: List devices in Ninja & AD and compare with XLSX file\n", 
+          "4: Generate XLSX file of devices in Ninja\n", "5: Add computer to NinjaOne (WIP)\n")
 
     choice = int(input("Please select an option from the list above (1-5)... "))
     
@@ -409,14 +393,14 @@ def main():
         get_orgs(api_token)
     elif choice == 2: # List all devices in the Domain
         get_ad_computers()
-        check_csv()
     elif choice == 3: # Get devices in NinjaOne and the Domain and compare with the XLSX Sheet
         get_ad_computers()
         get_devices_detailed(api_token)  
-        check_csv()
+        get_excel_data()
         compare_res()
-    elif choice == 4: # Add computer to the Domain
-        add_to_domain()
+    elif choice == 4: # Generate XLSX file from results of devicves in Ninja
+        get_orgs(api_token)
+        generate_xlsx()
     elif choice == 5: # Add computer to NinjaOne
         print("\nThis feature is currently being developed and is unavailable...")
     else:

@@ -10,11 +10,14 @@ Logs/
 *_*
 
 #Ignore any company related files
-Network.xlsx
-computers.csv
+*.xlsx
+*.csv
 
 # Ignore any test files
 test*.*
+
+# Ignore dist
+dist/
 
 #Ignore powershell stuff
 pwrshl/
