@@ -26,7 +26,6 @@ oauth_url = "https://app.ninjarmm.com/ws/oauth/token"
 
 # Be sure to change the path in .env 
 load_dotenv() 
-path = os.getenv('XL_PATH')
 
 # Arguements
 parser = argparse.ArgumentParser(description="A CLI Application for IT Technicians to access and manage Organizations & Devices in NinjaOne(NinjaRMM) straight from the Command Line", 
@@ -161,6 +160,7 @@ def get_devices_detailed(token):
 def get_excel_data():
     global wb
     global ws
+    global path
     global xl_ids
     global xl_system_names 
     global xl_row_num
@@ -168,6 +168,7 @@ def get_excel_data():
     global xl_domain_statuses
 
     # Initialize workbook
+    path = os.getenv('XL_PATH')
     wb = xl.load_workbook(path)
     ws = wb['Computers']
 
