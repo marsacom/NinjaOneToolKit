@@ -63,6 +63,10 @@ def get_token():
 
 # Get organizations assocaited in NinjaOne
 def get_orgs(token):
+    global orgs
+    global orgs_id
+    global user_sel
+    
     org_url = endpoint + "organizations/"
 
     headers = {
@@ -72,22 +76,22 @@ def get_orgs(token):
 
     organizations = requests.get(org_url, headers=headers).json()
 
-    global org
-    org = []
-    org_id = []
+    orgs = []
+    orgs_id = []
 
     print('-'*80 + "\nOrganizations\n" + '-'*80 + '\n')
 
-    for i in organizations:
-        print(str(i["id"]) + ". " + str(i["name"]))
-        org.append(i["name"])
-        org_id.append(i["id"])
+    c = 0
+    for org in organizations:
+        c = c + 1
+        print(str(c) + ". " + str(org["name"]))
+        orgs.append(org["name"])
+        orgs_id.append(org["id"])
 
     print('\n')
 
-    global user_sel
-    user_sel = input("Please select an organization " + "(1-" + str(len(organizations)) + ")... ")
-    
+    sel =  input("Please select an organization " + "(1-" + str(len(organizations)) + ")... ")
+    user_sel = orgs[sel] # We want the user_sel to be the organization id that they selected, since the ids may not be in numerical order
     get_devices_detailed(token)
 
 
@@ -272,12 +276,13 @@ def generate_xlsx():
 
         # Concat the selected org name with the file name, adding 1 as the user_sel correlated to the org id
         # but since we are accessing it in a dictonary, 1 is actually 0, 2 is 1, etc, so we will just add 1...
-        wb_name = str(org[int(user_sel) - 1]).replace(" ", "-") + "-Ninja-Devices.xlsx"
+        wb_name = str(orgs[get_id_from_org()]).replace(" ", "-") + "-Ninja-Devices.xlsx"
         wb.save(wb_name)
 
         print("\nSuccessfully generated XLSX file, file can be found at..." + os.getcwd() + "\\" + wb_name + "\n")
-    except:
-        print("ERROR: Unable to generate XLSX file...")
+    except Exception as Error:
+        print("ERROR: Unable to generate XLSX file - ", Error)
+
 
 # Get all computers associated with Active Directory
 def get_ad_computers():
@@ -343,12 +348,20 @@ def in_ninja(device):
     else:
         return False
 
+
 def in_domain(device):
     if device in ad_names:
         return True
     else:
         return False
 
+
+def get_id_from_org(org_name):
+    for org_name in orgs:
+        if org_name == orgs: # Check if org exists
+            return orgs_id[orgs.index(org_name)]
+        else: # Org does not exist
+            return 0
 
 # Write results to results.txt file in the specified log path
 def write_to_file(ninja_missing, ad_missing, both):
