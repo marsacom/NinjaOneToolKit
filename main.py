@@ -8,18 +8,23 @@
 # Add devices into NinjaOne/Domain
 # Brayden Kukla - 2024
 
-
+# Generic libraries
 import os
 import sys
 import csv
 import warnings
 import requests
-import openpyxl as xl
 import subprocess
 import argparse
 from tabulate import tabulate
 from dotenv import load_dotenv
 from datetime import datetime
+# OpenpyXL libraries
+import openpyxl as xl
+import openpyxl.styles as xlstyle
+from openpyxl.worksheet.table import Table, TableStyleInfo
+from openpyxl.utils import get_column_letter as xlgcl
+
 
 endpoint = "https://app.ninjarmm.com/v2/"
 oauth_url = "https://app.ninjarmm.com/ws/oauth/token"
@@ -91,7 +96,8 @@ def get_orgs(token):
     print('\n')
 
     sel =  input("Please select an organization " + "(1-" + str(len(organizations)) + ")... ")
-    user_sel = orgs[sel] # We want the user_sel to be the organization id that they selected, since the ids may not be in numerical order
+    user_sel = orgs_id[int(sel)-1] # We want the user_sel to be the organization id that they selected, since the ids may not be in numerical order
+    print("ORGANIZATION ID : ", str(user_sel))
     get_devices_detailed(token)
 
 
@@ -106,7 +112,7 @@ def get_devices_detailed(token):
     }
 
     # Using the built in device filter param to only get detailed info for devices in a specific org
-    device_url = endpoint + "devices-detailed/" + "?df=org=" + (user_sel if user_sel != '' else domain_org_id)
+    device_url = endpoint + "devices-detailed/" + "?df=org=" + (str(user_sel) if str(user_sel) != "" else domain_org_id)
     devices = requests.get(device_url, headers=headers).json()
 
     global ninja_ids
@@ -147,7 +153,7 @@ def get_devices_detailed(token):
             ninja_system_memory.append(round((int(k["memory"]["capacity"]))/(1024 ** 3)))
             ninja_processors.append(str(k["processors"][0]["name"]))
             ninja_last_login.append(str(k["lastLoggedInUser"]))
-            ninja_last_boot.append(int(k["os"]["lastBootTime"]))
+            ninja_last_boot.append(datetime.fromtimestamp(int(k["os"]["lastBootTime"])).strftime('%m-%d-%Y %H:%M:%S'))
 
             data.append([str(k["systemName"]), str(k["id"]), "Offline" if str(k["offline"]) == "True" else "Online", str(k["os"]["name"]),  
                          str(k["system"]["manufacturer"]), str(k["system"]["model"]), str(k["system"]["serialNumber"]), str(round(int(k["memory"]["capacity"]) / (1024 ** 3))) + " GB",  
@@ -264,7 +270,7 @@ def generate_xlsx():
         for i in range(0,len(ninja_system_names)) :
             row = row + 1
             ws["A" + str(row)] = ninja_system_names[i]
-            ws["B" + str(row)] = ninja_status[i]
+            ws["B" + str(row)] = "Offline" if ninja_status[i] == "True" else "Online"
             ws["C" + str(row)] = ninja_os_names[i]
             ws["D" + str(row)] = ninja_system_brands[i]
             ws["E" + str(row)] = ninja_system_models[i]
@@ -273,13 +279,46 @@ def generate_xlsx():
             ws["H" + str(row)] = ninja_processors[i]
             ws["I" + str(row)] = ninja_last_login[i]
             ws["J" + str(row)] = ninja_last_boot[i]
+        
+        # Now lets attempt to format the sheet
+        try: 
+            # Create and style table
+            table = Table(displayName='NinjaDevices', ref='A1:' + xlgcl(ws.max_column) + str(ws.max_row))
+            table.tableStyleInfo = TableStyleInfo(name="TableStyle", showFirstColumn=True, showLastColumn=True,
+                                showRowStripes=True, showColumnStripes=True)
+            ws.add_table(table)  
 
-        # Concat the selected org name with the file name, adding 1 as the user_sel correlated to the org id
-        # but since we are accessing it in a dictonary, 1 is actually 0, 2 is 1, etc, so we will just add 1...
-        wb_name = str(orgs[get_id_from_org()]).replace(" ", "-") + "-Ninja-Devices.xlsx"
-        wb.save(wb_name)
+            for row in ws.iter_rows(): # Lets set the allignment properties
+                for cell in row:
+                    cell.alignment = xlstyle.Alignment(vertical='center', horizontal='center')
 
-        print("\nSuccessfully generated XLSX file, file can be found at..." + os.getcwd() + "\\" + wb_name + "\n")
+            for column in ws.columns: # Now lets set the column widths
+                length = 0
+                letter =  column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > length:
+                            length = len(cell.value)
+                    except:
+                        pass
+                width = (length + 2) # Add a little extra room in the cell to work with
+                ws.column_dimensions[letter].width = width
+        except Exception as Error:
+            print("\nERROR: Unable to format XLSX file - ", Error)  
+
+        # Concat the selected org name with the file name, user_sel is the selected orgs id, run a function to get the org name from its ID
+        org_name = orgs[orgs_id.index(user_sel)]
+        wb_name = org_name.replace(" ", "-") + "-Ninja-Devices.xlsx"
+        
+        folder_path = os.getcwd() + "\\XLSX Results\\" 
+        full_path =  folder_path + wb_name
+
+        if not os.path.exists(folder_path): # Lets check if the folder already exists first
+            os.mkdir(os.getcwd() + "\\XLSX Results")
+
+        wb.save(full_path) # Finally lets save the workbook
+
+        print("\nSuccessfully generated XLSX file, file can be found at..." + full_path + "\n")
     except Exception as Error:
         print("ERROR: Unable to generate XLSX file - ", Error)
 
@@ -287,14 +326,14 @@ def generate_xlsx():
 # Get all computers associated with Active Directory
 def get_ad_computers():
     # First gather all devices via Get-ADComp cmdlet then parse the information from the CSV
-    cmd = " Get-ADComputer -Filter * -Properties IPv4Address | Export-Csv " + str(os.getenv('CSV_PATH'))
+    cmd = " Get-ADComputer -Filter * -Properties IPv4Address | Export-Csv " + os.getcwd()
     p = subprocess.Popen('powershell -command' + cmd)
     p.communicate()
 
     # Now let's parse the CSV and check/store values for later comparisons
     data = [] #Array to store values for displaying in tabulate table
     header = ["System Name", "DNS Name", "IP Address"] #Headers for tabulate table columns1
-    file = os.getenv('CSV_PATH')
+    file = os.getcwd() + "\\computers.csv"
 
     global ad_rows
     global ad_dns
@@ -355,13 +394,6 @@ def in_domain(device):
     else:
         return False
 
-
-def get_id_from_org(org_name):
-    for org_name in orgs:
-        if org_name == orgs: # Check if org exists
-            return orgs_id[orgs.index(org_name)]
-        else: # Org does not exist
-            return 0
 
 # Write results to results.txt file in the specified log path
 def write_to_file(ninja_missing, ad_missing, both):

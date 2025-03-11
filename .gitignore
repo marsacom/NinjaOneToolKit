@@ -22,3 +22,6 @@ dist/
 #Ignore powershell stuff
 pwrshl/
 addtoninja.ps1
+
+#Ignore any generated XLSX files
+XLSX Results/*
