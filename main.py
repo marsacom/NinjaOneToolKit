@@ -143,23 +143,35 @@ def get_devices_detailed(token):
 
     if len(devices) >= 1:
         for k in devices:
-            ninja_ids.append(int(k["id"]))
-            ninja_system_names.append(str(k["systemName"]))
-            ninja_status.append(str(k["offline"]))
-            ninja_os_names.append(str(k["os"]["name"]))
-            ninja_system_brands.append(str(k["system"]["manufacturer"]))
-            ninja_system_models.append(str(k["system"]["model"]))
-            ninja_system_serials.append(str(k["system"]["serialNumber"]))
-            ninja_system_memory.append(round((int(k["memory"]["capacity"]))/(1024 ** 3)))
-            ninja_processors.append(str(k["processors"][0]["name"]))
-            ninja_last_login.append(str(k["lastLoggedInUser"]))
-            ninja_last_boot.append(datetime.fromtimestamp(int(k["os"]["lastBootTime"])).strftime('%m-%d-%Y %H:%M:%S'))
+            try:
+                dev_id = (int(k["id"])) if "id" in k else ninja_ids.append(0)
+                name = (str(k["systemName"])) if "systemName" in k else ninja_system_names.append("N/A")
+                status = (str(k["offline"])) if "offline" in k else ninja_status.append("N/A")
+                os = (str(k["os"]["name"])) if "os" in k else ninja_os_names.append("N/A")
+                manufacturer = (str(k["system"]["manufacturer"])) if "system" in k and "manufacturer" in k["system"] else ninja_system_names.append("N/A")
+                model = (str(k["system"]["model"])) if "system" in k and "model" in k["system"] else ninja_system_models.append("N/A")
+                serial = (str(k["system"]["serialNumber"])) if "system" in k and "serialNumber" in k["system"] else ninja_system_serials.append("N/A")
+                memory = (round((int(k["memory"]["capacity"]))/(1024 ** 3))) if "memory" in k and "capcity" in k["memory"] else ninja_system_memory.append("N/A")
+                processor = (str(k["processors"][0]["name"])) if "processors" in k and "name" in k["processors"][0] else ninja_processors.append("N/A")
+                last_login = (str(k["lastLoggedInUser"])) if "lastLoggedInUser" in k else ninja_last_login.append("N/A")
+                last_boot = (datetime.fromtimestamp(int(k["os"]["lastBootTime"])).strftime('%m-%d-%Y %H:%M:%S')) if "os" in k and "lastBootTime" in k["os"] else ninja_last_boot.append("N/A")
 
-            data.append([str(k["systemName"]), str(k["id"]), "Offline" if str(k["offline"]) == "True" else "Online", str(k["os"]["name"]),  
-                         str(k["system"]["manufacturer"]), str(k["system"]["model"]), str(k["system"]["serialNumber"]), str(round(int(k["memory"]["capacity"]) / (1024 ** 3))) + " GB",  
-                         str(k["processors"][0]["name"]), str(k["lastLoggedInUser"]), 
-                         datetime.fromtimestamp(int(k["os"]["lastBootTime"])).strftime('%m-%d-%Y %H:%M:%S')])
-            
+                ninja_ids.append(dev_id)
+                ninja_system_names.append(name)
+                ninja_status.append(status)
+                ninja_os_names.append(os)
+                ninja_system_brands.append(manufacturer)
+                ninja_system_models.append(model)
+                ninja_system_serials.append(serial)
+                ninja_system_memory.append(memory)
+                ninja_processors.append(processor)
+                ninja_last_login.append(last_login)
+                ninja_last_boot.append(last_boot)
+                
+                data.append([name, dev_id, status, os, manufacturer, model, serial, memory, processor, last_login, last_boot])
+            except Exception as Error:
+                print("ERROR: ", Error)
+
         print(tabulate(data, headers=header, tablefmt='simple_grid'))
     else:
         print("\nThere are no devices currently associated with this organization...\n")
