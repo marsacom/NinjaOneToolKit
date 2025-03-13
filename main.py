@@ -326,7 +326,7 @@ def generate_xlsx():
 # Get all computers associated with Active Directory
 def get_ad_computers():
     # First gather all devices via Get-ADComp cmdlet then parse the information from the CSV
-    cmd = " Get-ADComputer -Filter * -Properties IPv4Address | Export-Csv " + os.getcwd()
+    cmd = " Get-ADComputer -Filter * -Properties IPv4Address | Export-Csv " + os.getcwd() + "\\computers.csv"
     p = subprocess.Popen('powershell -command' + cmd)
     p.communicate()
 
