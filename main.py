@@ -320,7 +320,7 @@ def generate_xlsx():
 
         # Concat the selected org name with the file name, user_sel is the selected orgs id, run a function to get the org name from its ID
         org_name = orgs[orgs_id.index(user_sel)]
-        wb_name = org_name.replace(" ", "-") + "-Ninja-Devices-" + str(datetime.now().strftime("%Y-%m-%d %H:%M")) + ".xlsx"
+        wb_name = org_name.replace(" ", "-") + "-Ninja-Devices-" + str(datetime.now().strftime("%Y-%m-%d-%H-%M")) + ".xlsx"
         
         folder_path = os.getcwd() + "\\XLSX Results\\" 
         full_path =  folder_path + wb_name
