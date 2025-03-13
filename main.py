@@ -426,12 +426,40 @@ def write_to_file(ninja_missing, ad_missing, both):
         print("\nERROR: File not found. Unable to create log file and/or log folder, please check permissions on your CWD...\n")  
 
 
+def device_in_ninja_not_domain():
+    data = []
+    header = ["System Name"]
+
+    for i in range(len(ninja_system_names)):
+        if not in_domain(ninja_system_names[i]):
+            data.append([ninja_system_names[i]])
+        else:
+            pass
+
+    print("\nDevices in NinjaOne but NOT the domain...\n")
+    print(tabulate(data, headers=header, tablefmt='double_grid'))
+
+
+def device_in_domain_not_ninja():
+    data = []
+    header = ["System Name"]
+    
+    for i in range(len(ad_names)):
+        if not in_ninja(ad_names[i]):
+            data.append([ad_names[i]])
+        else:
+            pass
+    print("\nDevices in the domain but NOT NinjaOne...\n")
+    print(tabulate(data, headers=header, tablefmt='double_grid'))
+
+
 # Main
 def main():
     get_token()
     print("\nStarting NinjaOneToolKit v.1.1...")   
-    print('-'*80 + "\n 1: List all devices in Ninja\n", "2: List all devices in AD (Domain)\n", "3: List devices in Ninja & AD and compare with XLSX file\n", 
-          "4: Generate XLSX file of devices in Ninja\n", "5: Add computer to NinjaOne (WIP)\n")
+    print('-'*80 + "\n 1: List all devices in Ninja\n", "2: List all devices in the domain\n", "3: List all devices that are in Ninja but NOT the domain\n", 
+          "4: List all devices that are in the domain but NOT Ninja\n", "5: List devices in Ninja & the domain and compare with XLSX file\n", 
+          "6: Generate XLSX file of devices in Ninja\n", "7: Add computer to NinjaOne (WIP)\n")
 
     choice = int(input("Please select an option from the list above (1-5)... "))
     
@@ -439,15 +467,23 @@ def main():
         get_orgs(api_token)
     elif choice == 2: # List all devices in the Domain
         get_ad_computers()
-    elif choice == 3: # Get devices in NinjaOne and the Domain and compare with the XLSX Sheet
+    elif choice == 3: # List all devices that are in Ninja but NOT the domain
+        get_ad_computers()
+        get_devices_detailed(api_token)
+        device_in_ninja_not_domain()
+    elif choice == 4: # List all devices that are in the domain but NOT Ninja
+        get_ad_computers()
+        get_devices_detailed(api_token)
+        device_in_domain_not_ninja()    
+    elif choice == 5: # Get devices in NinjaOne and the Domain and compare with the XLSX Sheet
         get_ad_computers()
         get_devices_detailed(api_token)  
         get_excel_data()
         compare_res()
-    elif choice == 4: # Generate XLSX file from results of devicves in Ninja
+    elif choice == 6: # Generate XLSX file from results of devicves in Ninja
         get_orgs(api_token)
         generate_xlsx()
-    elif choice == 5: # Add computer to NinjaOne
+    elif choice == 7: # Add computer to NinjaOne
         print("\nThis feature is currently being developed and is unavailable...")
     else:
         print("\nERROR: Please re-run the script and enter a valid value, 1-5")

@@ -8,9 +8,11 @@ A CLI Application for IT Technicians to access and manage Organizations & Device
 ## Current Features
 > 1. List all devices in NinjaOne
 > 2. List all devices in the Domain 
-> 3. List devices in Ninja & AD and compare with XLSX file
-> 4. Generate XLSX file of device in Ninja
-> 5. ~~Add computer to NinjaOne~~  ***WIP*** 
+> 3. List all devices that are in Ninja but NOT the domain
+> 4. List all devices that are in the domain but not Ninja
+> 5. List devices in Ninja & AD and compare with XLSX file
+> 6. Generate XLSX file of device in Ninja
+> 7. ~~Add computer to NinjaOne~~  ***WIP*** 
 
 
 ## Installation
