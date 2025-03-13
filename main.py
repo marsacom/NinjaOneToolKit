@@ -180,7 +180,7 @@ def get_excel_data():
     # Initialize workbook
     path = os.getenv('XL_PATH')
     wb = xl.load_workbook(path)
-    ws = wb['Computers']
+    ws = wb[str(os.getenv('XL_WORKSHEET_NAME'))]
 
     xl_ids = []
     xl_system_names = []
