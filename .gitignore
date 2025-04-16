@@ -24,4 +24,4 @@ pwrshl/
 addtoninja.ps1
 
 #Ignore any generated XLSX files
-XLSX Results/*
+XLSX Results/

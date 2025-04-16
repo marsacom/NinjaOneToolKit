@@ -146,12 +146,12 @@ def get_devices_detailed(token):
             try:
                 dev_id = (int(k["id"])) if "id" in k else ninja_ids.append(0)
                 name = (str(k["systemName"])) if "systemName" in k else ninja_system_names.append("N/A")
-                status = (str(k["offline"])) if "offline" in k else ninja_status.append("N/A")
+                status = "Offline" if (str(k["offline"])) == "True" else "Online" if "offline" in k else ninja_status.append("N/A")
                 os = (str(k["os"]["name"])) if "os" in k else ninja_os_names.append("N/A")
                 manufacturer = (str(k["system"]["manufacturer"])) if "system" in k and "manufacturer" in k["system"] else ninja_system_names.append("N/A")
                 model = (str(k["system"]["model"])) if "system" in k and "model" in k["system"] else ninja_system_models.append("N/A")
                 serial = (str(k["system"]["serialNumber"])) if "system" in k and "serialNumber" in k["system"] else ninja_system_serials.append("N/A")
-                memory = (round((int(k["memory"]["capacity"]))/(1024 ** 3))) if "memory" in k and "capcity" in k["memory"] else ninja_system_memory.append("N/A")
+                memory = (round((int(k["memory"]["capacity"]))/(1024 ** 3))) if "memory" in k and "capacity" in k["memory"] else ninja_system_memory.append("N/A")
                 processor = (str(k["processors"][0]["name"])) if "processors" in k and "name" in k["processors"][0] else ninja_processors.append("N/A")
                 last_login = (str(k["lastLoggedInUser"])) if "lastLoggedInUser" in k else ninja_last_login.append("N/A")
                 last_boot = (datetime.fromtimestamp(int(k["os"]["lastBootTime"])).strftime('%m-%d-%Y %H:%M:%S')) if "os" in k and "lastBootTime" in k["os"] else ninja_last_boot.append("N/A")
@@ -216,10 +216,10 @@ def get_excel_data():
 
 # Compare results of devices in NinjaOne to the Excel File and update values in the "Computers" sheet
 def compare_res():
+    ad_missing = []
+    ninja_missing = []
     data = [] #Array to store values for displaying in tabulate table
     header = ["Device","In Domain?", "In Ninja?"] #Headers for tabulate table columns    
-    ninja_missing = []
-    ad_missing = []
     both = []
 
     print('\n' + '-'*80 + "\nDevices In The Excel File And Their Statuses In NinjaOne & Domain...\n" + '-'*80)
@@ -275,22 +275,26 @@ def generate_xlsx():
     ws['H1'] = "Processor"
     ws['I1'] = "Last Login"
     ws['J1'] = "Last Boot Time"
+    ws['K1'] = "In Ninja?"
+    ws['L1'] = "In Domain?"
 
     # Iterate through the sheet to save values
-    row = 1
+    rownum = 1
     try: 
         for i in range(0,len(ninja_system_names)) :
-            row = row + 1
-            ws["A" + str(row)] = ninja_system_names[i]
-            ws["B" + str(row)] = "Offline" if ninja_status[i] == "True" else "Online"
-            ws["C" + str(row)] = ninja_os_names[i]
-            ws["D" + str(row)] = ninja_system_brands[i]
-            ws["E" + str(row)] = ninja_system_models[i]
-            ws["F" + str(row)] = ninja_system_serials[i]
-            ws["G" + str(row)] = ninja_system_memory[i]
-            ws["H" + str(row)] = ninja_processors[i]
-            ws["I" + str(row)] = ninja_last_login[i]
-            ws["J" + str(row)] = ninja_last_boot[i]
+            rownum = rownum + 1
+            ws["A" + str(rownum)] = ninja_system_names[i]
+            ws["B" + str(rownum)] = ninja_status[i]
+            ws["C" + str(rownum)] = ninja_os_names[i]
+            ws["D" + str(rownum)] = ninja_system_brands[i]
+            ws["E" + str(rownum)] = ninja_system_models[i]
+            ws["F" + str(rownum)] = ninja_system_serials[i]
+            ws["G" + str(rownum)] = ninja_system_memory[i]
+            ws["H" + str(rownum)] = ninja_processors[i]
+            ws["I" + str(rownum)] = ninja_last_login[i]
+            ws["J" + str(rownum)] = ninja_last_boot[i]
+            ws["K" + str(rownum)] = "Y" if in_ninja(ninja_system_names[i]) else "N"
+            ws["L" + str(rownum)] = "Y" if in_domain(ninja_system_names[i]) else "N"
         
         # Now lets attempt to format the sheet
         try: 
@@ -317,6 +321,14 @@ def generate_xlsx():
                 ws.column_dimensions[letter].width = width
         except Exception as Error:
             print("\nERROR: Unable to format XLSX file - ", Error)  
+
+        # Lets make a note of any devices not in Ninja
+        device_in_domain_not_ninja()
+        rownum = rownum + 5
+        ws["A" + str(rownum)] = "NOTE : Devices NOT in Ninja but in the Domain..."
+        for d in range(len(devices_in_domain_not_ninja)):
+            rownum = rownum + 1
+            ws["A" + str(rownum)] = devices_in_domain_not_ninja[d]
 
         # Concat the selected org name with the file name, user_sel is the selected orgs id, run a function to get the org name from its ID
         org_name = orgs[orgs_id.index(user_sel)]
@@ -453,12 +465,17 @@ def device_in_ninja_not_domain():
 
 
 def device_in_domain_not_ninja():
+    global devices_in_domain_not_ninja
+    devices_in_domain_not_ninja = []
     data = []
     header = ["System Name"]
     
     for i in range(len(ad_names)):
-        if not in_ninja(ad_names[i]):
-            data.append([ad_names[i]])
+        name = str(ad_names[i])
+        print(name[0:3].upper())  # We are going to be ignoring any of the servers
+        if not in_ninja(name) and name[0:3].upper() != 'RRC':
+            devices_in_domain_not_ninja.append(name)
+            data.append([name])
         else:
             pass
     print("\nDevices in the domain but NOT NinjaOne...\n")
@@ -494,6 +511,7 @@ def main():
         compare_res()
     elif choice == 6: # Generate XLSX file from results of devicves in Ninja
         get_orgs(api_token)
+        get_ad_computers()
         generate_xlsx()
     elif choice == 7: # Add computer to NinjaOne
         print("\nThis feature is currently being developed and is unavailable...")
